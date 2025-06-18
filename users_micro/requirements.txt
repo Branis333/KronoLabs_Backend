@@ -1,0 +1,26 @@
+fastapi
+uvicorn[standard]
+# For Pydantic
+pydantic[email]
+# For authentication
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+# For database
+sqlalchemy
+psycopg2-binary
+# Environment file
+python-dotenv
+# Additional dependencies
+requests
+pycryptodome
+google-auth
+# For UUID support
+uuid
+# For file uploads
+python-multipart
+# For image processing (optional)
+Pillow
+# For async support
+aiofiles
+dotenv
