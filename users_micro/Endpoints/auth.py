@@ -178,9 +178,9 @@ async def create_user(
         # Create token
         token = create_access_token(new_user.username, new_user.id)
         # Get user info
-        user_info = ReturnUser.from_orm(new_user).dict()
+        user_info_json = ReturnUser.from_orm(new_user).json()
         # Encrypt data
-        data = encrypt_any_data({"UserInfo": user_info})
+        data = encrypt_any_data({"UserInfo": user_info_json})
         return {"access_token": token, "token_type": "bearer", "encrypted_data": data}
     except Exception as e:
         db.rollback()
@@ -203,10 +203,10 @@ async def login(db: db_dependency, user_login: UserLogin):
     token = create_access_token(user.username, user.id)
     
     # Get user info
-    user_info = ReturnUser.from_orm(user).dict()
+    user_info_json = ReturnUser.from_orm(user).json()
     
     # Encrypt data
-    data = encrypt_any_data({"UserInfo": user_info})
+    data = encrypt_any_data({"UserInfo": user_info_json})
     
     return {"access_token": token, "token_type": "bearer", "encrypted_data": data}
 

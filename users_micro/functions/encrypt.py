@@ -12,7 +12,7 @@ BLOCK_SIZE = 16  # AES block size (16 bytes)
 
 def encrypt_any_data(data: dict) -> str:
     # Convert dictionary to JSON string
-    data_str = json.dumps(data)  # Use json.dumps for proper formatting
+    data_str = json.dumps(data, default=str)  # Use default=str to handle datetime and other non-serializable types
     
     # Ensure the key length is appropriate for AES (16, 24, or 32 bytes)
     key = SECRET_KEY_DATA.ljust(BLOCK_SIZE, b'\0')[:BLOCK_SIZE]  # Adjust key length
