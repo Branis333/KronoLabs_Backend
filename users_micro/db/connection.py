@@ -4,8 +4,19 @@ from sqlalchemy.exc import SQLAlchemyError
 from .database import engine, SessionLocal
 from typing import Annotated
 from models.users_models import Base
+import logging
 
-Base.metadata.create_all(bind=engine)
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Try to create tables, but don't fail if database is not available
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("✅ Database tables created successfully")
+except Exception as e:
+    logger.error(f"❌ Failed to create database tables: {e}")
+    logger.warning("⚠️ App will continue but database functionality may be limited")
 
 def get_db():
     db = SessionLocal()

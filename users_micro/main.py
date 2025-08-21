@@ -36,12 +36,21 @@ async def startup_event():
             print(f"✅ Supabase connection successful!")
             print(f"Database time: {row[0]}")
             print(f"Database version: {row[1]}")
+            
+            # Try to create tables if they don't exist
+            from models.users_models import Base as UserBase
+            from models.social_models import Base as SocialBase
+            UserBase.metadata.create_all(bind=engine)
+            SocialBase.metadata.create_all(bind=engine)
+            print("✅ Database tables verified/created")
+            
     except Exception as e:
         print(f"❌ Supabase connection failed: {e}")
+        print("⚠️ App will start but database functionality will be limited")
 
-# Create database tables
-user_models.Base.metadata.create_all(bind=engine)
-social_models.Base.metadata.create_all(bind=engine)
+# Remove the immediate table creation from here since we moved it to startup event
+# user_models.Base.metadata.create_all(bind=engine)
+# social_models.Base.metadata.create_all(bind=engine)
 
 # Create uploads directory if it doesn't exist
 uploads_dir = Path("uploads")
@@ -84,10 +93,16 @@ def health_check():
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
             db_status = "connected"
-    except Exception:
-        db_status = "disconnected"
-    
-    return {
-        "status": "healthy",
-        "database": db_status
-    }
+        
+        return {
+            "status": "healthy",
+            "database": db_status,
+            "message": "KronoLabs API is running successfully"
+        }
+    except Exception as e:
+        return {
+            "status": "degraded",
+            "database": "disconnected",
+            "error": str(e),
+            "message": "API is running but database is unavailable"
+        }
