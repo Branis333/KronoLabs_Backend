@@ -174,7 +174,6 @@ cython_debug/
 *.sqlite3
 
 # Uploads directory (user-generated content)
-uploads/
 temp/
 tmp/
 
