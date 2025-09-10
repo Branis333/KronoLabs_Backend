@@ -303,47 +303,21 @@ async def get_conversations(
                 )
             ).count()
             
-            # Convert to response format
-            user_profile = UserProfile(
-                id=user.id,
-                username=user.username,
-                email=user.email,
-                full_name=user.full_name,
-                bio=user.bio,
-                profile_image_url=user.profile_image_url,
-                website=user.website,
-                is_verified=user.is_verified,
-                created_at=user.created_at
-            )
+            # Convert to response format with Base64 encoded images
+            user_profile = create_user_profile(user)
             
             # Get sender and receiver for last message
             sender = current_user if last_message.sender_id == current_user.id else user
             receiver = user if last_message.sender_id == current_user.id else current_user
             
-            sender_profile = UserProfile(
-                id=sender.id,
-                username=sender.username,
-                email=sender.email,
-                full_name=sender.full_name,
-                bio=sender.bio,
-                profile_image_url=sender.profile_image_url,
-                website=sender.website,
-                is_verified=sender.is_verified,
-                created_at=sender.created_at
-            )
+            sender_profile = create_user_profile(sender)
+            receiver_profile = create_user_profile(receiver)
             
-            receiver_profile = UserProfile(
-                id=receiver.id,
-                username=receiver.username,
-                email=receiver.email,
-                full_name=receiver.full_name,
-                bio=receiver.bio,
-                profile_image_url=receiver.profile_image_url,
-                website=receiver.website,
-                is_verified=receiver.is_verified,
-                created_at=receiver.created_at
-            )
-            
+            # Encode last message media data for response
+            last_message_media_data = None
+            if last_message.media_data:
+                last_message_media_data = base64.b64encode(last_message.media_data).decode('utf-8')
+
             last_message_response = MessageResponse(
                 id=last_message.id,
                 sender_id=last_message.sender_id,
@@ -351,7 +325,8 @@ async def get_conversations(
                 sender=sender_profile,
                 receiver=receiver_profile,
                 message_text=last_message.message_text,
-                media_url=last_message.media_url,
+                media_data=last_message_media_data,
+                media_mime_type=last_message.media_mime_type,
                 created_at=last_message.created_at,
                 is_read=last_message.is_read
             )
@@ -418,29 +393,13 @@ async def get_conversation_messages(
             sender = current_user if message.sender_id == current_user.id else other_user
             receiver = other_user if message.sender_id == current_user.id else current_user
             
-            sender_profile = UserProfile(
-                id=sender.id,
-                username=sender.username,
-                email=sender.email,
-                full_name=sender.full_name,
-                bio=sender.bio,
-                profile_image_url=sender.profile_image_url,
-                website=sender.website,
-                is_verified=sender.is_verified,
-                created_at=sender.created_at
-            )
+            sender_profile = create_user_profile(sender)
+            receiver_profile = create_user_profile(receiver)
             
-            receiver_profile = UserProfile(
-                id=receiver.id,
-                username=receiver.username,
-                email=receiver.email,
-                full_name=receiver.full_name,
-                bio=receiver.bio,
-                profile_image_url=receiver.profile_image_url,
-                website=receiver.website,
-                is_verified=receiver.is_verified,
-                created_at=receiver.created_at
-            )
+            # Encode message media data for response
+            message_media_data = None
+            if message.media_data:
+                message_media_data = base64.b64encode(message.media_data).decode('utf-8')
             
             message_responses.append(MessageResponse(
                 id=message.id,
@@ -449,7 +408,8 @@ async def get_conversation_messages(
                 sender=sender_profile,
                 receiver=receiver_profile,
                 message_text=message.message_text,
-                media_url=message.media_url,
+                media_data=message_media_data,
+                media_mime_type=message.media_mime_type,
                 created_at=message.created_at,
                 is_read=message.is_read
             ))
