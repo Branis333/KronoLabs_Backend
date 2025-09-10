@@ -14,8 +14,9 @@ class ReturnUser(BaseModel):
     lname: Optional[str] = None
     full_name: Optional[str] = None
     bio: Optional[str] = None
-    avatar: Optional[str] = None
-    profile_image_url: Optional[str] = None
+    avatar: Optional[str] = None  # Base64 encoded image data
+    profile_image: Optional[str] = None  # Base64 encoded image data
+    profile_image_mime_type: Optional[str] = None
     website: Optional[str] = None
 
     # Account status

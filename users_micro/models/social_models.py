@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, Boolean, DateTime, Integer, ForeignKey, Enum as SQLEnum, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
@@ -35,7 +35,8 @@ class Post(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     caption = Column(Text, nullable=True)
-    media_url = Column(Text, nullable=True)
+    media_data = Column(LargeBinary, nullable=True)  # Store image/video as binary data
+    media_mime_type = Column(String(100), nullable=True)  # MIME type of the media
     media_type = Column(SQLEnum(MediaType), nullable=False, default=MediaType.image)
     location = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -55,7 +56,8 @@ class PostMedia(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     post_id = Column(UUID(as_uuid=True), ForeignKey('posts.id'), nullable=False)
-    media_url = Column(Text, nullable=False)
+    media_data = Column(LargeBinary, nullable=False)  # Store media as binary data
+    media_mime_type = Column(String(100), nullable=False)  # MIME type of the media
     order_index = Column(Integer, nullable=False)
     media_type = Column(SQLEnum(MediaType), nullable=False)
     
@@ -107,7 +109,8 @@ class Story(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     text = Column(Text, nullable=True)  # For text-only stories or text with media
-    media_url = Column(Text, nullable=True)  # Now nullable since stories can be text-only
+    media_data = Column(LargeBinary, nullable=True)  # Store media as binary data
+    media_mime_type = Column(String(100), nullable=True)  # MIME type of the media
     media_type = Column(SQLEnum(MediaType), nullable=True)  # Now nullable since stories can be text-only
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, default=lambda: datetime.utcnow() + timedelta(hours=24))
@@ -136,7 +139,8 @@ class DirectMessage(Base):
     sender_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     receiver_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     message_text = Column(Text, nullable=True)
-    media_url = Column(Text, nullable=True)  # For uploaded images/videos
+    media_data = Column(LargeBinary, nullable=True)  # Store media as binary data
+    media_mime_type = Column(String(100), nullable=True)  # MIME type of the media
     
     # For sharing posts and stories
     shared_post_id = Column(UUID(as_uuid=True), ForeignKey('posts.id'), nullable=True)

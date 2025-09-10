@@ -8,12 +8,14 @@ from sqlalchemy import or_
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
+import base64
 
 from db.connection import db_dependency
 from models.users_models import User# Import User class directly
 from schemas.schemas import CreateUserRequest, UserLogin, Token
 from schemas.return_schemas import ReturnUser
 from functions.encrypt import encrypt_any_data
+from utils.media_utils import MediaUtils
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
@@ -111,6 +113,29 @@ async def get_front_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
             detail="Authentication failed. Your token is invalid or has expired.",
         )
 
+def create_return_user(user: User) -> ReturnUser:
+    """Convert User model to ReturnUser with base64 encoded images"""
+    return ReturnUser(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        is_google_account=user.is_google_account,
+        fname=user.fname,
+        lname=user.lname,
+        full_name=user.full_name,
+        bio=user.bio,
+        avatar=MediaUtils.encode_to_base64(user.avatar) if user.avatar else None,
+        profile_image=MediaUtils.encode_to_base64(user.profile_image) if user.profile_image else None,
+        profile_image_mime_type=user.profile_image_mime_type,
+        website=user.website,
+        is_active=user.is_active,
+        email_confirmed=user.email_confirmed,
+        is_verified=user.is_verified,
+        created_at=user.created_at,
+        last_login=user.last_login,
+        updated_at=user.updated_at
+    )
+
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @router.post("/register", response_model=UserResponse)
@@ -122,8 +147,6 @@ async def create_user(
     """
     Register a new user account with optional profile picture upload
     """
-    from pathlib import Path
-    import mimetypes
     try:
         # Check if username or email already exists
         check_username = db.query(User).filter(User.username == user_request.username).first()
@@ -132,37 +155,18 @@ async def create_user(
             raise HTTPException(status_code=400, detail="Username already taken")
         if check_email:
             raise HTTPException(status_code=400, detail="Email already taken")
+        
         # Handle profile picture upload
-        profile_image_url = None
-        if profile_picture:
-            content = await profile_picture.read()
-            file_size = len(content)
-            if file_size == 0:
-                raise HTTPException(status_code=400, detail="Profile picture file is empty")
-            file_extension = Path(profile_picture.filename).suffix.lower()
-            detected_mime_type = mimetypes.guess_type(profile_picture.filename)[0]
-            content_type = detected_mime_type or profile_picture.content_type
-            allowed_image_types = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"}
-            allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
-            if content_type not in allowed_image_types and file_extension not in allowed_extensions:
-                raise HTTPException(status_code=400, detail=f"Unsupported profile picture type: {content_type}")
-            max_image_size = 10 * 1024 * 1024  # 10MB
-            if file_size > max_image_size:
-                raise HTTPException(status_code=400, detail="Profile picture exceeds 10MB limit")
-            # Save file
-            base_upload_dir = Path("uploads")
-            user_upload_dir = base_upload_dir / "profiles"
-            user_upload_dir.mkdir(parents=True, exist_ok=True)
-            import uuid
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            safe_filename = f"{timestamp}_{unique_id}{file_extension}"
-            file_path = user_upload_dir / safe_filename
-            with open(file_path, "wb") as buffer:
-                buffer.write(content)
-            profile_image_url = f"/profiles/uploads/{safe_filename}"
-            await profile_picture.seek(0)
+        profile_image_data = None
+        profile_image_mime_type = None
+        if profile_picture and profile_picture.filename:
+            try:
+                profile_image_data, profile_image_mime_type = await MediaUtils.process_profile_image(profile_picture)
+            except HTTPException as e:
+                raise e
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Profile picture processing failed: {str(e)}")
+        
         # Create user model
         new_user = User(
             fname=user_request.fname,
@@ -170,15 +174,16 @@ async def create_user(
             email=user_request.email,
             username=user_request.username,
             password_hash=bcrypt_context.hash(user_request.password),
-            profile_image_url=profile_image_url
+            profile_image=profile_image_data,
+            profile_image_mime_type=profile_image_mime_type
         )
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         # Create token
         token = create_access_token(new_user.username, new_user.id)
-        # Get user info
-        user_info_json = ReturnUser.from_orm(new_user).json()
+        # Get user info with base64 encoded images
+        user_info_json = create_return_user(new_user).json()
         # Encrypt data
         data = encrypt_any_data({"UserInfo": user_info_json})
         return {"access_token": token, "token_type": "bearer", "encrypted_data": data}
@@ -202,8 +207,8 @@ async def login(db: db_dependency, user_login: UserLogin):
     # Create token
     token = create_access_token(user.username, user.id)
     
-    # Get user info
-    user_info_json = ReturnUser.from_orm(user).json()
+    # Get user info with base64 encoded images
+    user_info_json = create_return_user(user).json()
     
     # Encrypt data
     data = encrypt_any_data({"UserInfo": user_info_json})
@@ -343,11 +348,11 @@ async def google_login(db: db_dependency, google_request: GoogleAuthRequest):
         # Create token
         token = create_access_token(user.username, user.id)
         
-        # Get user info
-        user_info = ReturnUser.from_orm(user).dict()
+        # Get user info with base64 encoded images
+        user_info_json = create_return_user(user).json()
         
         # Encrypt data
-        data = encrypt_any_data({"UserInfo": user_info})
+        data = encrypt_any_data({"UserInfo": user_info_json})
         
         return {"access_token": token, "token_type": "bearer", "encrypted_data": data}
         
@@ -439,35 +444,15 @@ async def update_user_profile(
             user.lname = update_request.lname
         
         # Handle profile picture upload
-        if profile_picture:
-            content = await profile_picture.read()
-            file_size = len(content)
-            if file_size == 0:
-                raise HTTPException(status_code=400, detail="Profile picture file is empty")
-            file_extension = Path(profile_picture.filename).suffix.lower()
-            detected_mime_type = mimetypes.guess_type(profile_picture.filename)[0]
-            content_type = detected_mime_type or profile_picture.content_type
-            allowed_image_types = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"}
-            allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'}
-            if content_type not in allowed_image_types and file_extension not in allowed_extensions:
-                raise HTTPException(status_code=400, detail=f"Unsupported profile picture type: {content_type}")
-            max_image_size = 10 * 1024 * 1024  # 10MB
-            if file_size > max_image_size:
-                raise HTTPException(status_code=400, detail="Profile picture exceeds 10MB limit")
-            # Save file
-            base_upload_dir = Path("uploads")
-            user_upload_dir = base_upload_dir / "profiles"
-            user_upload_dir.mkdir(parents=True, exist_ok=True)
-            import uuid
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            safe_filename = f"{timestamp}_{unique_id}{file_extension}"
-            file_path = user_upload_dir / safe_filename
-            with open(file_path, "wb") as buffer:
-                buffer.write(content)
-            user.profile_image_url = f"/profiles/uploads/{safe_filename}"
-            await profile_picture.seek(0)
+        if profile_picture and profile_picture.filename:
+            try:
+                profile_image_data, profile_image_mime_type = await MediaUtils.process_profile_image(profile_picture)
+                user.profile_image = profile_image_data
+                user.profile_image_mime_type = profile_image_mime_type
+            except HTTPException as e:
+                raise e
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Profile picture processing failed: {str(e)}")
         
         # Save changes
         db.commit()
@@ -476,11 +461,11 @@ async def update_user_profile(
         # Create new token (in case username changed)
         token = create_access_token(user.username, user.id)
         
-        # Get updated user info
-        user_info = ReturnUser.from_orm(user).dict()
+        # Get updated user info with base64 encoded images
+        user_info_json = create_return_user(user).json()
         
         # Encrypt data
-        data = encrypt_any_data({"UserInfo": user_info})
+        data = encrypt_any_data({"UserInfo": user_info_json})
         
         return {"access_token": token, "token_type": "bearer", "encrypted_data": data}
         

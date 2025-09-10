@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, LargeBinary
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from sqlalchemy.orm import relationship
@@ -22,8 +22,9 @@ class User(Base):
     lname = Column(String(50), nullable=True, default="")
     full_name = Column(String(255), nullable=True)  # Display name for social media
     bio = Column(Text, nullable=True)  # User bio
-    avatar = Column(Text, nullable=True)
-    profile_image_url = Column(Text, nullable=True)  # Additional profile image field
+    avatar = Column(LargeBinary, nullable=True)  # Profile image as binary data
+    profile_image = Column(LargeBinary, nullable=True)  # Additional profile image as binary data
+    profile_image_mime_type = Column(String(100), nullable=True)  # MIME type for profile image
     website = Column(Text, nullable=True)  # Optional external link
     
     # Account status

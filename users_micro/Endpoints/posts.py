@@ -33,9 +33,8 @@ POST /posts/ - Upload files and create post in one request
 - Files are automatically saved and organized by user
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi.responses import Response, FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, or_, and_
 from db.connection import get_db
@@ -44,10 +43,35 @@ from models.users_models import User
 from models.social_models import Post, PostMedia, Like, Comment, SavedPost, Hashtag, Tag, Follower
 from schemas.social_schemas import (
     PostCreate, PostResponse, CommentCreate, CommentResponse, 
-    FeedResponse, SuccessResponse, UserProfile, PostMediaSchema, MediaType, PostVisibility
+    FeedResponse, SuccessResponse, UserProfile, PostMediaSchema, PostVisibility, MediaType
 )
+from utils.media_utils import MediaUtils
 from typing import List, Optional
 import uuid
+import base64
+import io
+
+# Helper function to create user profile with binary data
+def create_user_profile(user: User) -> UserProfile:
+    """Create UserProfile with base64 encoded images from binary data"""
+    profile_image = None
+    if user.profile_image and user.profile_image_mime_type:
+        profile_image = base64.b64encode(user.profile_image).decode('utf-8')
+    
+    return UserProfile(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        bio=user.bio,
+        profile_image=profile_image,
+        profile_image_mime_type=user.profile_image_mime_type,
+        website=user.website,
+        is_verified=user.is_verified,
+        followers_count=user.followers_count,
+        following_count=user.following_count,
+        posts_count=user.posts_count
+    )
 import os
 import shutil
 from pathlib import Path
@@ -128,82 +152,16 @@ async def create_post_with_upload(
                     detail=f"File {file.filename} is empty"
                 )
             
-            # Detect file type from content and filename
-            file_extension = Path(file.filename).suffix.lower()
-            detected_mime_type = mimetypes.guess_type(file.filename)[0]
-            
-            # Use detected mime type if available, otherwise use provided content_type
-            content_type = detected_mime_type or file.content_type
-            
-            # Validate file type
-            allowed_image_types = {
-                "image/jpeg", "image/jpg", "image/png", "image/gif", 
-                "image/webp", "image/bmp", "image/tiff"
-            }
-            allowed_video_types = {
-                "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo",
-                "video/webm", "video/ogg", "video/3gpp"
-            }
-            
-            allowed_extensions = {
-                '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff',
-                '.mp4', '.mpeg', '.mov', '.avi', '.webm', '.ogg', '.3gp'
-            }
-            
-            if (content_type not in allowed_image_types and 
-                content_type not in allowed_video_types and 
-                file_extension not in allowed_extensions):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Unsupported file type: {content_type} or extension: {file_extension}"
-                )
-            
-            # Determine if it's image or video
-            is_image = (content_type in allowed_image_types or 
-                       file_extension in {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'})
-            is_video = (content_type in allowed_video_types or 
-                       file_extension in {'.mp4', '.mpeg', '.mov', '.avi', '.webm', '.ogg', '.3gp'})
-            
-            # Validate file size
-            max_image_size = 10 * 1024 * 1024  # 10MB
-            max_video_size = 100 * 1024 * 1024  # 100MB
-            
-            if is_image and file_size > max_image_size:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Image file {file.filename} size ({file_size / 1024 / 1024:.1f}MB) exceeds 10MB limit"
-                )
-            elif is_video and file_size > max_video_size:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Video file {file.filename} size ({file_size / 1024 / 1024:.1f}MB) exceeds 100MB limit"
-                )
-            
-            # Generate unique filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            safe_filename = f"{timestamp}_{unique_id}_{index}{file_extension}"
-            
-            # Create full file path
-            file_path = user_upload_dir / safe_filename
-            
-            # Save file to disk
-            with open(file_path, "wb") as buffer:
-                buffer.write(content)
-            
-            # Create relative URL for serving files
-            media_url = f"/posts/uploads/{current_user.id}/{safe_filename}"
-            
-            # Determine media type
-            media_type = MediaType.image if is_image else MediaType.video
+            # Process media using MediaUtils
+            processed_media = await MediaUtils.process_post_media(file)
             
             uploaded_files.append({
-                "media_url": media_url,
-                "media_type": media_type,
+                "media_data": processed_media["media_data"],
+                "media_mime_type": processed_media["media_mime_type"],
+                "media_type": processed_media["media_type"],
                 "order_index": index,
                 "original_filename": file.filename,
-                "file_size": file_size,
-                "content_type": content_type
+                "file_size": file_size
             })
             
             # Reset file position for potential future reads
@@ -221,11 +179,12 @@ async def create_post_with_upload(
         except ValueError:
             post_visibility = PostVisibility.public
         
-        # Create the post
+        # Create the post with binary media data
         new_post = Post(
             user_id=current_user.id,
             caption=caption,
-            media_url=uploaded_files[0]["media_url"],  # Primary media URL
+            media_data=uploaded_files[0]["media_data"],  # Primary media data as binary
+            media_mime_type=uploaded_files[0]["media_mime_type"],
             media_type=post_media_type,
             location=location,
             visibility=post_visibility
@@ -239,7 +198,8 @@ async def create_post_with_upload(
         for file_info in uploaded_files:
             post_media = PostMedia(
                 post_id=new_post.id,
-                media_url=file_info["media_url"],
+                media_data=file_info["media_data"],
+                media_mime_type=file_info["media_mime_type"],
                 media_type=file_info["media_type"],
                 order_index=file_info["order_index"]
             )
@@ -372,35 +332,36 @@ async def get_feed(
             comments_count = len(post.comments)
             
             # Convert user to UserProfile
-            user_profile = UserProfile(
-                id=post.user.id,
-                username=post.user.username,
-                email=post.user.email,
-                full_name=post.user.full_name,
-                bio=post.user.bio,
-                profile_image_url=post.user.profile_image_url,
-                website=post.user.website,
-                is_verified=post.user.is_verified,
-                created_at=post.user.created_at
-            )
+            user_profile = create_user_profile(post.user)
             
             # Convert post media to schema format
             media_schemas = []
             if post.post_media:
                 for media in sorted(post.post_media, key=lambda x: x.order_index):
+                    media_data_b64 = None
+                    if media.media_data:
+                        media_data_b64 = base64.b64encode(media.media_data).decode('utf-8')
+                    
                     media_schemas.append(PostMediaSchema(
                         id=media.id,
-                        media_url=media.media_url,
+                        media_data=media_data_b64,
+                        media_mime_type=media.media_mime_type,
                         order_index=media.order_index,
                         media_type=media.media_type
                     ))
+            
+            # Encode main post media data
+            main_media_data = None
+            if post.media_data:
+                main_media_data = base64.b64encode(post.media_data).decode('utf-8')
             
             post_responses.append(PostResponse(
                 id=post.id,
                 user_id=post.user_id,
                 user=user_profile,
                 caption=post.caption,
-                media_url=post.media_url,
+                media_data=main_media_data,
+                media_mime_type=post.media_mime_type,
                 media_type=post.media_type,
                 location=post.location,
                 visibility=post.visibility,
@@ -464,35 +425,36 @@ async def get_post(
         ).first() is not None
         
         # Convert user to UserProfile
-        user_profile = UserProfile(
-            id=post.user.id,
-            username=post.user.username,
-            email=post.user.email,
-            full_name=post.user.full_name,
-            bio=post.user.bio,
-            profile_image_url=post.user.profile_image_url,
-            website=post.user.website,
-            is_verified=post.user.is_verified,
-            created_at=post.user.created_at
-        )
+        user_profile = create_user_profile(post.user)
         
         # Convert post media to schema format
         media_schemas = []
         if post.post_media:
             for media in sorted(post.post_media, key=lambda x: x.order_index):
+                media_data_b64 = None
+                if media.media_data:
+                    media_data_b64 = base64.b64encode(media.media_data).decode('utf-8')
+                
                 media_schemas.append(PostMediaSchema(
                     id=media.id,
-                    media_url=media.media_url,
+                    media_data=media_data_b64,
+                    media_mime_type=media.media_mime_type,
                     order_index=media.order_index,
                     media_type=media.media_type
                 ))
+        
+        # Encode main post media data
+        main_media_data = None
+        if post.media_data:
+            main_media_data = base64.b64encode(post.media_data).decode('utf-8')
         
         return PostResponse(
             id=post.id,
             user_id=post.user_id,
             user=user_profile,
             caption=post.caption,
-            media_url=post.media_url,
+            media_data=main_media_data,
+            media_mime_type=post.media_mime_type,
             media_type=post.media_type,
             location=post.location,
             visibility=post.visibility,
@@ -736,35 +698,41 @@ async def delete_post(
             detail=f"Failed to delete post: {str(e)}"
         )
 
-@router.get("/uploads/{user_id}/{filename}")
-async def serve_uploaded_file(
-    user_id: int,
-    filename: str,
+@router.get("/media/{media_type}/{media_id}")
+async def serve_media(
+    media_type: str,  # 'post' or 'post_media'
+    media_id: str,
     db: Session = Depends(get_db)
 ):
-    """Serve uploaded media files"""
+    """Serve media files from database binary storage"""
     try:
-        # Construct file path
-        file_path = Path("uploads") / "posts" / str(user_id) / filename
+        media_data = None
+        mime_type = None
         
-        # Check if file exists
-        if not file_path.exists():
+        if media_type == "post":
+            # Get media from Post table
+            post = db.query(Post).filter(Post.id == media_id).first()
+            if post and post.media_data:
+                media_data = post.media_data
+                mime_type = post.media_mime_type
+        elif media_type == "post_media":
+            # Get media from PostMedia table
+            post_media = db.query(PostMedia).filter(PostMedia.id == media_id).first()
+            if post_media and post_media.media_data:
+                media_data = post_media.media_data
+                mime_type = post_media.media_mime_type
+        
+        if not media_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found"
+                detail="Media not found"
             )
         
-        # Get file info
-        file_size = file_path.stat().st_size
-        media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-        
-        # Return file
-        return FileResponse(
-            path=str(file_path),
-            media_type=media_type,
-            filename=filename,
+        # Return binary data as response
+        return Response(
+            content=media_data,
+            media_type=mime_type or "application/octet-stream",
             headers={
-                "Content-Length": str(file_size),
                 "Cache-Control": "public, max-age=31536000"  # Cache for 1 year
             }
         )
@@ -774,7 +742,7 @@ async def serve_uploaded_file(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to serve file: {str(e)}"
+            detail=f"Failed to serve media: {str(e)}"
         )
 
 @router.get("/test-upload")

@@ -20,7 +20,7 @@ Media Requirements:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, and_, or_
 from db.connection import get_db
@@ -30,13 +30,33 @@ from models.social_models import Story, StoryView, Follower
 from schemas.social_schemas import (
     StoryCreate, StoryResponse, SuccessResponse, UserProfile, MediaType
 )
+from utils.media_utils import MediaUtils
 from typing import List, Optional
 from datetime import datetime, timedelta
 import uuid
-import os
-import shutil
-from pathlib import Path
-import mimetypes
+import base64
+
+# Helper function to create user profile with binary data
+def create_user_profile(user: User) -> UserProfile:
+    """Create UserProfile with base64 encoded images from binary data"""
+    profile_image = None
+    if user.profile_image and user.profile_image_mime_type:
+        profile_image = base64.b64encode(user.profile_image).decode('utf-8')
+    
+    return UserProfile(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        bio=user.bio,
+        profile_image=profile_image,
+        profile_image_mime_type=user.profile_image_mime_type,
+        website=user.website,
+        is_verified=user.is_verified,
+        followers_count=user.followers_count,
+        following_count=user.following_count,
+        posts_count=user.posts_count
+    )
 
 router = APIRouter(prefix="/stories", tags=["Stories"])
 
@@ -56,91 +76,60 @@ async def create_story(
                 detail="You must provide either text or at least one media file for a story."
             )
         
-        # Prepare uploads directory
-        base_upload_dir = Path("uploads")
-        user_upload_dir = base_upload_dir / "stories" / str(current_user.id)
-        user_upload_dir.mkdir(parents=True, exist_ok=True)
-        
-        media_url = None
+        media_data = None
+        media_mime_type = None
         media_type = None
-        uploaded_files = []
         
-        if files:
-            for index, file in enumerate(files):
-                if not file.filename:
-                    raise HTTPException(status_code=400, detail="File must have a filename")
-                content = await file.read()
-                file_size = len(content)
-                if file_size == 0:
-                    raise HTTPException(status_code=400, detail=f"File {file.filename} is empty")
-                file_extension = Path(file.filename).suffix.lower()
-                detected_mime_type = mimetypes.guess_type(file.filename)[0]
-                content_type = detected_mime_type or file.content_type
-                allowed_image_types = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp", "image/tiff"}
-                allowed_video_types = {"video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo", "video/webm", "video/ogg", "video/3gpp"}
-                allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.mp4', '.mpeg', '.mov', '.avi', '.webm', '.ogg', '.3gp'}
-                if (content_type not in allowed_image_types and content_type not in allowed_video_types and file_extension not in allowed_extensions):
-                    raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type} or extension: {file_extension}")
-                is_image = (content_type in allowed_image_types or file_extension in {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff'})
-                is_video = (content_type in allowed_video_types or file_extension in {'.mp4', '.mpeg', '.mov', '.avi', '.webm', '.ogg', '.3gp'})
-                max_image_size = 10 * 1024 * 1024  # 10MB
-                max_video_size = 50 * 1024 * 1024  # 50MB for stories
-                if is_image and file_size > max_image_size:
-                    raise HTTPException(status_code=400, detail=f"Image file {file.filename} exceeds 10MB limit")
-                elif is_video and file_size > max_video_size:
-                    raise HTTPException(status_code=400, detail=f"Video file {file.filename} exceeds 50MB limit")
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                unique_id = str(uuid.uuid4())[:8]
-                safe_filename = f"{timestamp}_{unique_id}_{index}{file_extension}"
-                file_path = user_upload_dir / safe_filename
-                with open(file_path, "wb") as buffer:
-                    buffer.write(content)
-                media_url = f"/stories/uploads/{current_user.id}/{safe_filename}"
-                media_type = MediaType.image if is_image else MediaType.video
-                uploaded_files.append({
-                    "media_url": media_url,
-                    "media_type": media_type,
-                    "order_index": index,
-                    "original_filename": file.filename
-                })
-                await file.seek(0)        # Use the first uploaded file as the main media for the story (if multiple)
-        main_media_url = uploaded_files[0]["media_url"] if uploaded_files else None
-        main_media_type = uploaded_files[0]["media_type"] if uploaded_files else None
+        if files and len(files) > 0:
+            # Process the first file (stories typically have one media item)
+            file = files[0]
+            if not file.filename:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File must have a filename"
+                )
+            
+            # Process media using MediaUtils
+            processed_media = await MediaUtils.process_story_media(file)
+            media_data = processed_media["media_data"]
+            media_mime_type = processed_media["media_mime_type"]
+            media_type = processed_media["media_type"]
         
-        # Create the story
+        # Create the story with binary media data
         new_story = Story(
             user_id=current_user.id,
             text=text,
-            media_url=main_media_url,
-            media_type=main_media_type
+            media_data=media_data,
+            media_mime_type=media_mime_type,
+            media_type=media_type
         )
+        
         db.add(new_story)
         db.commit()
         db.refresh(new_story)
+        
         # Convert user to UserProfile
-        user_profile = UserProfile(
-            id=current_user.id,
-            username=current_user.username,
-            email=current_user.email,
-            full_name=current_user.full_name,
-            bio=current_user.bio,
-            profile_image_url=current_user.profile_image_url,
-            website=current_user.website,
-            is_verified=current_user.is_verified,
-            created_at=current_user.created_at
-        )
+        user_profile = create_user_profile(current_user)
+        
+        # Encode media data for response
+        encoded_media_data = None
+        if media_data:
+            encoded_media_data = base64.b64encode(media_data).decode('utf-8')
+        
         return StoryResponse(
             id=new_story.id,
             user_id=new_story.user_id,
             user=user_profile,
-            media_url=new_story.media_url,
-            media_type=new_story.media_type,
             text=new_story.text,
+            media_data=encoded_media_data,
+            media_mime_type=media_mime_type,
+            media_type=media_type,
             created_at=new_story.created_at,
             expires_at=new_story.expires_at,
-            view_count=new_story.view_count,
+            views_count=0,
             is_viewed=False
         )
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -184,27 +173,24 @@ async def get_stories_feed(
                 view.user_id == current_user.id for view in story.views
             )
             
-            user_profile = UserProfile(
-                id=story.user.id,
-                username=story.user.username,
-                email=story.user.email,
-                full_name=story.user.full_name,
-                bio=story.user.bio,
-                profile_image_url=story.user.profile_image_url,
-                website=story.user.website,
-                is_verified=story.user.is_verified,
-                created_at=story.user.created_at
-            )
+            user_profile = create_user_profile(story.user)
+            
+            # Encode media data for response
+            encoded_media_data = None
+            if story.media_data:
+                encoded_media_data = base64.b64encode(story.media_data).decode('utf-8')
             
             story_responses.append(StoryResponse(
                 id=story.id,
                 user_id=story.user_id,
                 user=user_profile,
-                media_url=story.media_url,
+                text=story.text,
+                media_data=encoded_media_data,
+                media_mime_type=story.media_mime_type,
                 media_type=story.media_type,
                 created_at=story.created_at,
                 expires_at=story.expires_at,
-                view_count=story.view_count,
+                views_count=len(story.views),
                 is_viewed=is_viewed
             ))
         
@@ -243,27 +229,24 @@ async def get_user_stories(
                 view.user_id == current_user.id for view in story.views
             )
             
-            user_profile = UserProfile(
-                id=story.user.id,
-                username=story.user.username,
-                email=story.user.email,
-                full_name=story.user.full_name,
-                bio=story.user.bio,
-                profile_image_url=story.user.profile_image_url,
-                website=story.user.website,
-                is_verified=story.user.is_verified,
-                created_at=story.user.created_at
-            )
+            user_profile = create_user_profile(story.user)
+            
+            # Encode media data for response
+            encoded_media_data = None
+            if story.media_data:
+                encoded_media_data = base64.b64encode(story.media_data).decode('utf-8')
             
             story_responses.append(StoryResponse(
                 id=story.id,
                 user_id=story.user_id,
                 user=user_profile,
-                media_url=story.media_url,
+                text=story.text,
+                media_data=encoded_media_data,
+                media_mime_type=story.media_mime_type,
                 media_type=story.media_type,
                 created_at=story.created_at,
                 expires_at=story.expires_at,
-                view_count=story.view_count,
+                views_count=len(story.views),
                 is_viewed=is_viewed
             ))
         

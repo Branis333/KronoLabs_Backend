@@ -32,7 +32,8 @@ class UserBase(BaseModel):
     email: str
     full_name: Optional[str] = None
     bio: Optional[str] = None
-    profile_image_url: Optional[str] = None
+    profile_image: Optional[str] = None  # Base64 encoded image data
+    profile_image_mime_type: Optional[str] = None
     website: Optional[str] = None
 
 class UserProfile(UserBase):
@@ -48,14 +49,16 @@ class UserProfile(UserBase):
 
 # Post Schemas
 class PostMediaCreate(BaseModel):
-    media_url: str
+    media_data: str  # Base64 encoded media data
+    media_mime_type: str
     media_type: MediaType
     order_index: int = 0
 
 class PostCreate(BaseModel):
     caption: Optional[str] = None
     media_files: Optional[List[PostMediaCreate]] = []  # For multiple media files
-    media_url: Optional[str] = None  # For backward compatibility
+    media_data: Optional[str] = None  # Base64 encoded media data
+    media_mime_type: Optional[str] = None
     media_type: MediaType = MediaType.image
     location: Optional[str] = None
     visibility: PostVisibility = PostVisibility.public
@@ -64,7 +67,8 @@ class PostCreate(BaseModel):
 
 class PostMediaSchema(BaseModel):
     id: UUID4
-    media_url: str
+    media_data: str  # Base64 encoded media data
+    media_mime_type: str
     order_index: int
     media_type: MediaType
     
@@ -76,7 +80,8 @@ class PostResponse(BaseModel):
     user_id: int
     user: UserProfile
     caption: Optional[str]
-    media_url: Optional[str]
+    media_data: Optional[str]  # Base64 encoded media data
+    media_mime_type: Optional[str]
     media_type: MediaType
     location: Optional[str]
     visibility: PostVisibility
@@ -112,7 +117,8 @@ class CommentResponse(BaseModel):
 # Story Schemas
 class StoryCreate(BaseModel):
     text: Optional[str] = None
-    media_url: Optional[str] = None
+    media_data: Optional[str] = None  # Base64 encoded media data
+    media_mime_type: Optional[str] = None
     media_type: Optional[MediaType] = None
 
 class StoryResponse(BaseModel):
@@ -120,7 +126,8 @@ class StoryResponse(BaseModel):
     user_id: int
     user: UserProfile
     text: Optional[str] = None
-    media_url: Optional[str] = None
+    media_data: Optional[str] = None  # Base64 encoded media data
+    media_mime_type: Optional[str] = None
     media_type: Optional[MediaType] = None
     created_at: datetime
     expires_at: datetime
@@ -134,7 +141,8 @@ class StoryResponse(BaseModel):
 class MessageCreate(BaseModel):
     receiver_id: int
     message_text: Optional[str] = None
-    media_url: Optional[str] = None
+    media_data: Optional[str] = None  # Base64 encoded media data
+    media_mime_type: Optional[str] = None
     shared_post_id: Optional[UUID4] = None
     shared_story_id: Optional[UUID4] = None
 
@@ -145,7 +153,8 @@ class MessageResponse(BaseModel):
     sender: UserProfile
     receiver: UserProfile
     message_text: Optional[str]
-    media_url: Optional[str]
+    media_data: Optional[str]  # Base64 encoded media data
+    media_mime_type: Optional[str]
     shared_post_id: Optional[UUID4] = None
     shared_story_id: Optional[UUID4] = None
     shared_post: Optional["PostResponse"] = None

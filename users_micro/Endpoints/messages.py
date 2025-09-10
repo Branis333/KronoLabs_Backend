@@ -10,7 +10,7 @@ Features:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, and_, or_, case
 from db.connection import get_db
@@ -21,13 +21,33 @@ from schemas.social_schemas import (
     MessageCreate, MessageResponse, ConversationResponse, 
     SuccessResponse, UserProfile, NotificationType, PostResponse, StoryResponse
 )
+from utils.media_utils import MediaUtils
 from typing import List, Optional
 from datetime import datetime
 import uuid
-import os
-import shutil
-from pathlib import Path
-import mimetypes
+import base64
+
+# Helper function to create user profile with binary data
+def create_user_profile(user: User) -> UserProfile:
+    """Create UserProfile with base64 encoded images from binary data"""
+    profile_image = None
+    if user.profile_image and user.profile_image_mime_type:
+        profile_image = base64.b64encode(user.profile_image).decode('utf-8')
+    
+    return UserProfile(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        bio=user.bio,
+        profile_image=profile_image,
+        profile_image_mime_type=user.profile_image_mime_type,
+        website=user.website,
+        is_verified=user.is_verified,
+        followers_count=user.followers_count,
+        following_count=user.following_count,
+        posts_count=user.posts_count
+    )
 
 router = APIRouter(prefix="/messages", tags=["Direct Messages"])
 
@@ -74,62 +94,13 @@ async def send_message(
             )
         
         # Handle file upload if provided
-        media_url = None
+        media_data = None
+        media_mime_type = None
         if file and file.filename:
-            # Validate file
-            content = await file.read()
-            file_size = len(content)
-            
-            if file_size == 0:
-                raise HTTPException(status_code=400, detail="File is empty")
-            
-            # Check file type and size
-            file_extension = Path(file.filename).suffix.lower()
-            detected_mime_type = mimetypes.guess_type(file.filename)[0]
-            content_type = detected_mime_type or file.content_type
-            
-            # Allowed types for message media
-            allowed_image_types = {"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/bmp"}
-            allowed_video_types = {"video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo", "video/webm"}
-            allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.mp4', '.mpeg', '.mov', '.avi', '.webm'}
-            
-            if (content_type not in allowed_image_types and 
-                content_type not in allowed_video_types and 
-                file_extension not in allowed_extensions):
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Unsupported file type: {content_type} or extension: {file_extension}"
-                )
-            
-            # Check file size limits
-            max_image_size = 10 * 1024 * 1024  # 10MB
-            max_video_size = 50 * 1024 * 1024  # 50MB
-            
-            is_image = (content_type in allowed_image_types or 
-                       file_extension in {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'})
-            is_video = (content_type in allowed_video_types or 
-                       file_extension in {'.mp4', '.mpeg', '.mov', '.avi', '.webm'})
-            
-            if is_image and file_size > max_image_size:
-                raise HTTPException(status_code=400, detail="Image exceeds 10MB limit")
-            elif is_video and file_size > max_video_size:
-                raise HTTPException(status_code=400, detail="Video exceeds 50MB limit")
-            
-            # Save file
-            base_upload_dir = Path("uploads")
-            message_upload_dir = base_upload_dir / "messages" / str(current_user.id)
-            message_upload_dir.mkdir(parents=True, exist_ok=True)
-            
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            safe_filename = f"{timestamp}_{unique_id}{file_extension}"
-            file_path = message_upload_dir / safe_filename
-            
-            with open(file_path, "wb") as buffer:
-                buffer.write(content)
-            
-            media_url = f"/messages/uploads/{current_user.id}/{safe_filename}"
-            await file.seek(0)
+            # Process media using MediaUtils
+            processed_media = await MediaUtils.process_message_media(file)
+            media_data = processed_media["media_data"]
+            media_mime_type = processed_media["media_mime_type"]
         
         # Validate shared content if provided
         shared_post = None
@@ -156,12 +127,13 @@ async def send_message(
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid story ID format")
         
-        # Create the message
+        # Create the message with binary media data
         new_message = DirectMessage(
             sender_id=current_user.id,
             receiver_id=receiver_id,
             message_text=message_text,
-            media_url=media_url,
+            media_data=media_data,
+            media_mime_type=media_mime_type,
             shared_post_id=uuid.UUID(shared_post_id) if shared_post_id else None,
             shared_story_id=uuid.UUID(shared_story_id) if shared_story_id else None
         )
@@ -187,81 +159,62 @@ async def send_message(
         
         if shared_post:
             # Create PostResponse for shared post
-            post_user_profile = UserProfile(
-                id=shared_post.user.id,
-                username=shared_post.user.username,
-                email=shared_post.user.email,
-                full_name=shared_post.user.full_name,
-                bio=shared_post.user.bio,
-                profile_image_url=shared_post.user.profile_image_url,
-                website=shared_post.user.website,
-                is_verified=shared_post.user.is_verified,
-                created_at=shared_post.user.created_at
-            )
+            post_user_profile = create_user_profile(shared_post.user)
+            
+            # Encode shared post media data
+            shared_post_media_data = None
+            if shared_post.media_data:
+                shared_post_media_data = base64.b64encode(shared_post.media_data).decode('utf-8')
             
             shared_post_response = PostResponse(
                 id=shared_post.id,
                 user_id=shared_post.user_id,
                 user=post_user_profile,
                 caption=shared_post.caption,
-                media_url=shared_post.media_url,
+                media_data=shared_post_media_data,
+                media_mime_type=shared_post.media_mime_type,
                 media_type=shared_post.media_type,
                 location=shared_post.location,
                 visibility=shared_post.visibility,
-                created_at=shared_post.created_at
+                created_at=shared_post.created_at,
+                likes_count=0,  # Simplified for shared content
+                comments_count=0,
+                is_liked=False,
+                is_saved=False,
+                post_media=[]
             )
         
         if shared_story:
             # Create StoryResponse for shared story
-            story_user_profile = UserProfile(
-                id=shared_story.user.id,
-                username=shared_story.user.username,
-                email=shared_story.user.email,
-                full_name=shared_story.user.full_name,
-                bio=shared_story.user.bio,
-                profile_image_url=shared_story.user.profile_image_url,
-                website=shared_story.user.website,
-                is_verified=shared_story.user.is_verified,
-                created_at=shared_story.user.created_at
-            )
+            story_user_profile = create_user_profile(shared_story.user)
+            
+            # Encode shared story media data
+            shared_story_media_data = None
+            if shared_story.media_data:
+                shared_story_media_data = base64.b64encode(shared_story.media_data).decode('utf-8')
             
             shared_story_response = StoryResponse(
                 id=shared_story.id,
                 user_id=shared_story.user_id,
                 user=story_user_profile,
                 text=shared_story.text,
-                media_url=shared_story.media_url,
+                media_data=shared_story_media_data,
+                media_mime_type=shared_story.media_mime_type,
                 media_type=shared_story.media_type,
                 created_at=shared_story.created_at,
                 expires_at=shared_story.expires_at,
-                view_count=shared_story.view_count,
+                views_count=0,  # Simplified for shared content
                 is_viewed=False
             )
         
         # Convert users to UserProfile format
-        sender_profile = UserProfile(
-            id=current_user.id,
-            username=current_user.username,
-            email=current_user.email,
-            full_name=current_user.full_name,
-            bio=current_user.bio,
-            profile_image_url=current_user.profile_image_url,
-            website=current_user.website,
-            is_verified=current_user.is_verified,
-            created_at=current_user.created_at
-        )
+        sender_profile = create_user_profile(current_user)
+        receiver_profile = create_user_profile(receiver)
         
-        receiver_profile = UserProfile(
-            id=receiver.id,
-            username=receiver.username,
-            email=receiver.email,
-            full_name=receiver.full_name,
-            bio=receiver.bio,
-            profile_image_url=receiver.profile_image_url,
-            website=receiver.website,
-            is_verified=receiver.is_verified,
-            created_at=receiver.created_at
-        )
+        # Encode message media data for response
+        encoded_media_data = None
+        if media_data:
+            encoded_media_data = base64.b64encode(media_data).decode('utf-8')
         
         return MessageResponse(
             id=new_message.id,
@@ -270,7 +223,8 @@ async def send_message(
             sender=sender_profile,
             receiver=receiver_profile,
             message_text=new_message.message_text,
-            media_url=new_message.media_url,
+            media_data=encoded_media_data,
+            media_mime_type=media_mime_type,
             shared_post_id=new_message.shared_post_id,
             shared_story_id=new_message.shared_story_id,
             shared_post=shared_post_response,

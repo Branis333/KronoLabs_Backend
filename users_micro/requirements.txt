@@ -21,6 +21,8 @@ uuid
 python-multipart
 # For image processing (optional)
 Pillow
+# For file type detection
+python-magic-bin
 # For async support
 aiofiles
 dotenv
