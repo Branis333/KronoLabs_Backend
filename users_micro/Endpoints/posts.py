@@ -227,28 +227,29 @@ async def create_post_with_upload(
         db.commit()
         db.refresh(new_post)
         
-        # Get user profile for response
-        user_profile = UserProfile(
-            id=current_user.id,
-            username=current_user.username,
-            email=current_user.email,
-            full_name=current_user.full_name,
-            bio=current_user.bio,
-            profile_image_url=current_user.profile_image_url,
-            website=current_user.website,
-            is_verified=current_user.is_verified,
-            created_at=current_user.created_at
-        )
+        # Get user profile for response with Base64 encoding
+        user_profile = create_user_profile(current_user)
         
-        # Convert post media to schema format
+        # Convert post media to schema format with Base64 encoding
         media_schemas = []
         for media in post_media_list:
+            # Encode media data as Base64
+            media_data_b64 = None
+            if media.media_data:
+                media_data_b64 = base64.b64encode(media.media_data).decode('utf-8')
+            
             media_schemas.append(PostMediaSchema(
                 id=media.id,
-                media_url=media.media_url,
+                media_data=media_data_b64,
+                media_mime_type=media.media_mime_type,
                 order_index=media.order_index,
                 media_type=media.media_type
             ))
+        
+        # Encode main post media data for response
+        main_media_data = None
+        if new_post.media_data:
+            main_media_data = base64.b64encode(new_post.media_data).decode('utf-8')
         
         # Return the created post with user info
         return PostResponse(
@@ -256,7 +257,8 @@ async def create_post_with_upload(
             user_id=new_post.user_id,
             user=user_profile,
             caption=new_post.caption,
-            media_url=new_post.media_url,
+            media_data=main_media_data,
+            media_mime_type=new_post.media_mime_type,
             media_type=new_post.media_type,
             location=new_post.location,
             visibility=new_post.visibility,
