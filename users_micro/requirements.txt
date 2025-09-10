@@ -21,8 +21,9 @@ uuid
 python-multipart
 # For image processing (optional)
 Pillow
-# For file type detection
-python-magic-bin
+# For file type detection (will fallback to mimetypes if not available)
+# Note: On Linux systems like Render, this requires libmagic1 system package
+python-magic
 # For async support
 aiofiles
 dotenv

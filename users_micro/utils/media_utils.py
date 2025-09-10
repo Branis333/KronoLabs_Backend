@@ -12,7 +12,13 @@ import base64
 import mimetypes
 from typing import Optional, Tuple
 from fastapi import UploadFile, HTTPException
-import magic
+
+# Try to import magic for file type detection, fallback to mimetypes
+try:
+    import magic
+    HAS_MAGIC = True
+except ImportError:
+    HAS_MAGIC = False
 
 class MediaUtils:
     
@@ -71,7 +77,13 @@ class MediaUtils:
         
         # Detect MIME type
         try:
-            mime_type = magic.from_buffer(content, mime=True)
+            if HAS_MAGIC:
+                mime_type = magic.from_buffer(content, mime=True)
+            else:
+                # Fallback to guessing from filename
+                mime_type, _ = mimetypes.guess_type(file.filename)
+                if not mime_type:
+                    mime_type = file.content_type or 'application/octet-stream'
         except:
             # Fallback to guessing from filename
             mime_type, _ = mimetypes.guess_type(file.filename)
