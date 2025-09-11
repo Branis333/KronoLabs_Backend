@@ -146,16 +146,17 @@ async def create_post_with_upload(
                     detail="File must have a filename"
                 )
             
-            # Read file content
+            # Read file content to validate size, then rewind before processing
             content = await file.read()
             file_size = len(content)
-            
             if file_size == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"File {file.filename} is empty"
                 )
-            
+            # Rewind so MediaUtils can read the file again
+            await file.seek(0)
+
             # Process media using MediaUtils - returns tuple (media_data, media_mime_type)
             media_data, media_mime_type = await MediaUtils.process_post_media(file)
             
@@ -174,7 +175,7 @@ async def create_post_with_upload(
                 "file_size": file_size
             })
             
-            # Reset file position for potential future reads
+            # Reset file position for potential future reads (already at start after processing)
             await file.seek(0)
         
         # Determine post media type
