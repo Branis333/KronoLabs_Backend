@@ -89,11 +89,27 @@ async def create_story(
                     detail="File must have a filename"
                 )
             
-            # Process media using MediaUtils
-            processed_media = await MediaUtils.process_story_media(file)
-            media_data = processed_media["media_data"]
-            media_mime_type = processed_media["media_mime_type"]
-            media_type = processed_media["media_type"]
+            # Process media using MediaUtils - fix tuple access issue
+            try:
+                processed_media = await MediaUtils.process_story_media(file)
+                # Handle both dict and tuple returns from MediaUtils
+                if isinstance(processed_media, dict):
+                    media_data = processed_media["media_data"]
+                    media_mime_type = processed_media["media_mime_type"] 
+                    media_type = processed_media.get("media_type", MediaType.image)
+                else:
+                    # Handle tuple format: (media_data, media_mime_type)
+                    media_data, media_mime_type = processed_media
+                    # Determine media type from MIME type
+                    if media_mime_type.startswith('video/'):
+                        media_type = MediaType.video
+                    else:
+                        media_type = MediaType.image
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to process media file: {str(e)}"
+                )
         
         # Create the story with binary media data
         new_story = Story(
@@ -345,17 +361,7 @@ async def get_story_viewers(
         
         viewer_profiles = []
         for viewer in viewers:
-            viewer_profiles.append(UserProfile(
-                id=viewer.id,
-                username=viewer.username,
-                email=viewer.email,
-                full_name=viewer.full_name,
-                bio=viewer.bio,
-                profile_image_url=viewer.profile_image_url,
-                website=viewer.website,
-                is_verified=viewer.is_verified,
-                created_at=viewer.created_at
-            ))
+            viewer_profiles.append(create_user_profile(viewer))
         
         return viewer_profiles
         
@@ -422,28 +428,25 @@ async def get_my_stories(
         stories = query.order_by(desc(Story.created_at)).all()
         
         story_responses = []
-        user_profile = UserProfile(
-            id=current_user.id,
-            username=current_user.username,
-            email=current_user.email,
-            full_name=current_user.full_name,
-            bio=current_user.bio,
-            profile_image_url=current_user.profile_image_url,
-            website=current_user.website,
-            is_verified=current_user.is_verified,
-            created_at=current_user.created_at
-        )
+        user_profile = create_user_profile(current_user)
         
         for story in stories:
+            # Encode media data for response
+            encoded_media_data = None
+            if story.media_data:
+                encoded_media_data = base64.b64encode(story.media_data).decode('utf-8')
+                
             story_responses.append(StoryResponse(
                 id=story.id,
                 user_id=story.user_id,
                 user=user_profile,
-                media_url=story.media_url,
+                text=story.text,
+                media_data=encoded_media_data,
+                media_mime_type=story.media_mime_type,
                 media_type=story.media_type,
                 created_at=story.created_at,
                 expires_at=story.expires_at,
-                view_count=story.view_count,
+                views_count=len(story.views),
                 is_viewed=True  # User always sees their own stories as viewed
             ))
         
