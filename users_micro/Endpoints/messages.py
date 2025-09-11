@@ -10,7 +10,7 @@ Features:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, and_, or_, case
 from db.connection import get_db
@@ -24,6 +24,7 @@ from schemas.social_schemas import (
 from utils.media_utils import MediaUtils
 from typing import List, Optional
 from datetime import datetime
+from pathlib import Path
 import uuid
 import base64
 
@@ -44,9 +45,10 @@ def create_user_profile(user: User) -> UserProfile:
         profile_image_mime_type=user.profile_image_mime_type,
         website=user.website,
         is_verified=user.is_verified,
-        followers_count=user.followers_count,
-        following_count=user.following_count,
-        posts_count=user.posts_count
+        followers_count=getattr(user, 'followers_count', 0),
+        following_count=getattr(user, 'following_count', 0),
+        posts_count=getattr(user, 'posts_count', 0),
+        created_at=user.created_at
     )
 
 router = APIRouter(prefix="/messages", tags=["Direct Messages"])
