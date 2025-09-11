@@ -8,8 +8,10 @@ from models.social_models import Post, Hashtag, Follower, Like, Comment, SavedPo
 from schemas.social_schemas import (
     SearchResponse, HashtagResponse, UserProfile, PostResponse, SuccessResponse
 )
+from utils.media_utils import MediaUtils
 from typing import List, Optional
 from datetime import datetime
+import base64
 
 router = APIRouter(prefix="/search", tags=["Search & Discovery"])
 
@@ -49,13 +51,19 @@ async def search(
                 Post.user_id == user.id
             ).count()
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if user.profile_image:
+                profile_image = base64.b64encode(user.profile_image).decode('utf-8')
+
             user_profiles.append(UserProfile(
                 id=user.id,
                 username=user.username,
                 email=user.email,
                 full_name=user.full_name,
                 bio=user.bio,
-                profile_image_url=user.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=user.profile_image_mime_type,
                 website=user.website,
                 is_verified=user.is_verified,
                 followers_count=followers_count,
@@ -91,24 +99,36 @@ async def search(
                 SavedPost.user_id == current_user.id
             ).first() is not None
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if post.user.profile_image:
+                profile_image = base64.b64encode(post.user.profile_image).decode('utf-8')
+
             user_profile = UserProfile(
                 id=post.user.id,
                 username=post.user.username,
                 email=post.user.email,
                 full_name=post.user.full_name,
                 bio=post.user.bio,
-                profile_image_url=post.user.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=post.user.profile_image_mime_type,
                 website=post.user.website,
                 is_verified=post.user.is_verified,
                 created_at=post.user.created_at
             )
             
+            # Convert media data to base64 if exists
+            media_data = None
+            if post.media_data:
+                media_data = base64.b64encode(post.media_data).decode('utf-8')
+
             post_responses.append(PostResponse(
                 id=post.id,
                 user_id=post.user_id,
                 user=user_profile,
                 caption=post.caption,
-                media_url=post.media_url,
+                media_data=media_data,
+                media_mime_type=post.media_mime_type,
                 media_type=post.media_type,
                 location=post.location,
                 visibility=post.visibility,
@@ -185,24 +205,36 @@ async def get_hashtag_posts(
                 SavedPost.user_id == current_user.id
             ).first() is not None
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if post.user.profile_image:
+                profile_image = base64.b64encode(post.user.profile_image).decode('utf-8')
+
             user_profile = UserProfile(
                 id=post.user.id,
                 username=post.user.username,
                 email=post.user.email,
                 full_name=post.user.full_name,
                 bio=post.user.bio,
-                profile_image_url=post.user.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=post.user.profile_image_mime_type,
                 website=post.user.website,
                 is_verified=post.user.is_verified,
                 created_at=post.user.created_at
             )
             
+            # Convert media data to base64 if exists
+            media_data = None
+            if post.media_data:
+                media_data = base64.b64encode(post.media_data).decode('utf-8')
+
             post_responses.append(PostResponse(
                 id=post.id,
                 user_id=post.user_id,
                 user=user_profile,
                 caption=post.caption,
-                media_url=post.media_url,
+                media_data=media_data,
+                media_mime_type=post.media_mime_type,
                 media_type=post.media_type,
                 location=post.location,
                 visibility=post.visibility,
@@ -309,24 +341,36 @@ async def explore_posts(
                 SavedPost.user_id == current_user.id
             ).first() is not None
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if post.user.profile_image:
+                profile_image = base64.b64encode(post.user.profile_image).decode('utf-8')
+
             user_profile = UserProfile(
                 id=post.user.id,
                 username=post.user.username,
                 email=post.user.email,
                 full_name=post.user.full_name,
                 bio=post.user.bio,
-                profile_image_url=post.user.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=post.user.profile_image_mime_type,
                 website=post.user.website,
                 is_verified=post.user.is_verified,
                 created_at=post.user.created_at
             )
             
+            # Convert media data to base64 if exists
+            media_data = None
+            if post.media_data:
+                media_data = base64.b64encode(post.media_data).decode('utf-8')
+
             post_responses.append(PostResponse(
                 id=post.id,
                 user_id=post.user_id,
                 user=user_profile,
                 caption=post.caption,
-                media_url=post.media_url,
+                media_data=media_data,
+                media_mime_type=post.media_mime_type,
                 media_type=post.media_type,
                 location=post.location,
                 visibility=post.visibility,
@@ -374,24 +418,36 @@ async def get_saved_posts(
                 Like.user_id == current_user.id
             ).first() is not None
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if post.user.profile_image:
+                profile_image = base64.b64encode(post.user.profile_image).decode('utf-8')
+
             user_profile = UserProfile(
                 id=post.user.id,
                 username=post.user.username,
                 email=post.user.email,
                 full_name=post.user.full_name,
                 bio=post.user.bio,
-                profile_image_url=post.user.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=post.user.profile_image_mime_type,
                 website=post.user.website,
                 is_verified=post.user.is_verified,
                 created_at=post.user.created_at
             )
             
+            # Convert media data to base64 if exists
+            media_data = None
+            if post.media_data:
+                media_data = base64.b64encode(post.media_data).decode('utf-8')
+
             post_responses.append(PostResponse(
                 id=post.id,
                 user_id=post.user_id,
                 user=user_profile,
                 caption=post.caption,
-                media_url=post.media_url,
+                media_data=media_data,
+                media_mime_type=post.media_mime_type,
                 media_type=post.media_type,
                 location=post.location,
                 visibility=post.visibility,
