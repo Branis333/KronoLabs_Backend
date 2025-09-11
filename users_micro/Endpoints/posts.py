@@ -47,6 +47,9 @@ from schemas.social_schemas import (
 )
 from utils.media_utils import MediaUtils
 from typing import List, Optional
+import base64
+import json
+import os
 import uuid
 import base64
 import io
@@ -68,9 +71,10 @@ def create_user_profile(user: User) -> UserProfile:
         profile_image_mime_type=user.profile_image_mime_type,
         website=user.website,
         is_verified=user.is_verified,
-        followers_count=user.followers_count,
-        following_count=user.following_count,
-        posts_count=user.posts_count
+        followers_count=getattr(user, 'followers_count', 0),
+        following_count=getattr(user, 'following_count', 0),
+        posts_count=getattr(user, 'posts_count', 0),
+        created_at=user.created_at
     )
 import os
 import shutil
@@ -152,13 +156,19 @@ async def create_post_with_upload(
                     detail=f"File {file.filename} is empty"
                 )
             
-            # Process media using MediaUtils
-            processed_media = await MediaUtils.process_post_media(file)
+            # Process media using MediaUtils - returns tuple (media_data, media_mime_type)
+            media_data, media_mime_type = await MediaUtils.process_post_media(file)
+            
+            # Determine media type from MIME type
+            if media_mime_type.startswith('video/'):
+                media_type = MediaType.video
+            else:
+                media_type = MediaType.image
             
             uploaded_files.append({
-                "media_data": processed_media["media_data"],
-                "media_mime_type": processed_media["media_mime_type"],
-                "media_type": processed_media["media_type"],
+                "media_data": media_data,
+                "media_mime_type": media_mime_type,
+                "media_type": media_type,
                 "order_index": index,
                 "original_filename": file.filename,
                 "file_size": file_size
