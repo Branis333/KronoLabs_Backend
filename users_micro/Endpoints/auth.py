@@ -235,7 +235,8 @@ async def get_user(current_user: user_dependency, db: db_dependency):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    user_info = ReturnUser.from_orm(user).dict()
+    # Use create_return_user to properly handle Base64 encoding
+    user_info = create_return_user(user).dict()
     encrypted_data = encrypt_any_data({"UserInfo": user_info})
     
     return {"encrypted_data": encrypted_data}

@@ -9,8 +9,10 @@ from schemas.social_schemas import (
     UserProfile, FollowResponse, NotificationResponse, 
     SuccessResponse, NotificationType
 )
+from utils.media_utils import MediaUtils
 from typing import List, Optional
 from datetime import datetime
+import base64
 
 router = APIRouter(prefix="/social", tags=["Social"])
 
@@ -108,13 +110,19 @@ async def get_followers(
                 Post.user_id == follower.id
             ).count()
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if follower.profile_image:
+                profile_image = base64.b64encode(follower.profile_image).decode('utf-8')
+            
             follower_profiles.append(UserProfile(
                 id=follower.id,
                 username=follower.username,
                 email=follower.email,
                 full_name=follower.full_name,
                 bio=follower.bio,
-                profile_image_url=follower.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=follower.profile_image_mime_type,
                 website=follower.website,
                 is_verified=follower.is_verified,
                 followers_count=followers_count,
@@ -163,13 +171,19 @@ async def get_following(
                 Post.user_id == user.id
             ).count()
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if user.profile_image:
+                profile_image = base64.b64encode(user.profile_image).decode('utf-8')
+            
             following_profiles.append(UserProfile(
                 id=user.id,
                 username=user.username,
                 email=user.email,
                 full_name=user.full_name,
                 bio=user.bio,
-                profile_image_url=user.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=user.profile_image_mime_type,
                 website=user.website,
                 is_verified=user.is_verified,
                 followers_count=followers_count,
@@ -211,13 +225,17 @@ async def get_notifications(
         for notification in notifications:
             from_user_profile = None
             if notification.from_user:
+                # Convert profile image to Base64 if it exists
+                profile_image = base64.b64encode(notification.from_user.profile_image).decode('utf-8') if notification.from_user.profile_image else None
+                
                 from_user_profile = UserProfile(
                     id=notification.from_user.id,
                     username=notification.from_user.username,
                     email=notification.from_user.email,
                     full_name=notification.from_user.full_name,
                     bio=notification.from_user.bio,
-                    profile_image_url=notification.from_user.profile_image_url,
+                    profile_image=profile_image,
+                    profile_image_mime_type=notification.from_user.profile_image_mime_type,
                     website=notification.from_user.website,
                     is_verified=notification.from_user.is_verified,
                     created_at=notification.from_user.created_at
@@ -362,13 +380,19 @@ async def get_suggested_users(
                 Post.user_id == user.id
             ).count()
             
+            # Convert profile image to base64 if exists
+            profile_image = None
+            if user.profile_image:
+                profile_image = base64.b64encode(user.profile_image).decode('utf-8')
+            
             user_profiles.append(UserProfile(
                 id=user.id,
                 username=user.username,
                 email=user.email,
                 full_name=user.full_name,
                 bio=user.bio,
-                profile_image_url=user.profile_image_url,
+                profile_image=profile_image,
+                profile_image_mime_type=user.profile_image_mime_type,
                 website=user.website,
                 is_verified=user.is_verified,
                 followers_count=followers_count,
