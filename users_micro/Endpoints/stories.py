@@ -53,9 +53,10 @@ def create_user_profile(user: User) -> UserProfile:
         profile_image_mime_type=user.profile_image_mime_type,
         website=user.website,
         is_verified=user.is_verified,
-        followers_count=user.followers_count,
-        following_count=user.following_count,
-        posts_count=user.posts_count
+        followers_count=getattr(user, 'followers_count', 0),
+        following_count=getattr(user, 'following_count', 0),
+        posts_count=getattr(user, 'posts_count', 0),
+        created_at=user.created_at
     )
 
 router = APIRouter(prefix="/stories", tags=["Stories"])
@@ -89,22 +90,14 @@ async def create_story(
                     detail="File must have a filename"
                 )
             
-            # Process media using MediaUtils - fix tuple access issue
+            # Process media using MediaUtils - returns tuple (media_data, media_mime_type)
             try:
-                processed_media = await MediaUtils.process_story_media(file)
-                # Handle both dict and tuple returns from MediaUtils
-                if isinstance(processed_media, dict):
-                    media_data = processed_media["media_data"]
-                    media_mime_type = processed_media["media_mime_type"] 
-                    media_type = processed_media.get("media_type", MediaType.image)
+                media_data, media_mime_type = await MediaUtils.process_story_media(file)
+                # Determine media type from MIME type
+                if media_mime_type.startswith('video/'):
+                    media_type = MediaType.video
                 else:
-                    # Handle tuple format: (media_data, media_mime_type)
-                    media_data, media_mime_type = processed_media
-                    # Determine media type from MIME type
-                    if media_mime_type.startswith('video/'):
-                        media_type = MediaType.video
-                    else:
-                        media_type = MediaType.image
+                    media_type = MediaType.image
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -142,7 +135,7 @@ async def create_story(
             media_type=media_type,
             created_at=new_story.created_at,
             expires_at=new_story.expires_at,
-            views_count=0,
+            view_count=0,
             is_viewed=False
         )
         
@@ -206,7 +199,7 @@ async def get_stories_feed(
                 media_type=story.media_type,
                 created_at=story.created_at,
                 expires_at=story.expires_at,
-                views_count=len(story.views),
+                view_count=len(story.views),
                 is_viewed=is_viewed
             ))
         
@@ -262,7 +255,7 @@ async def get_user_stories(
                 media_type=story.media_type,
                 created_at=story.created_at,
                 expires_at=story.expires_at,
-                views_count=len(story.views),
+                view_count=len(story.views),
                 is_viewed=is_viewed
             ))
         
@@ -318,7 +311,7 @@ async def view_story(
             
             db.commit()
         
-        return SuccessResponse(message="Story viewed successfully")
+        return SuccessResponse(success=True, message="Story viewed successfully")
         
     except HTTPException:
         raise
@@ -398,7 +391,7 @@ async def delete_story(
         db.delete(story)
         db.commit()
         
-        return SuccessResponse(message="Story deleted successfully")
+        return SuccessResponse(success=True, message="Story deleted successfully")
         
     except HTTPException:
         raise
@@ -446,7 +439,7 @@ async def get_my_stories(
                 media_type=story.media_type,
                 created_at=story.created_at,
                 expires_at=story.expires_at,
-                views_count=len(story.views),
+                view_count=len(story.views),
                 is_viewed=True  # User always sees their own stories as viewed
             ))
         
