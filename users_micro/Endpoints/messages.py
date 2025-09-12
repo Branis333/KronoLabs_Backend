@@ -100,9 +100,7 @@ async def send_message(
         media_mime_type = None
         if file and file.filename:
             # Process media using MediaUtils
-            processed_media = await MediaUtils.process_message_media(file)
-            media_data = processed_media["media_data"]
-            media_mime_type = processed_media["media_mime_type"]
+            media_data, media_mime_type = await MediaUtils.process_message_media(file)
         
         # Validate shared content if provided
         shared_post = None
