@@ -57,5 +57,11 @@ class User(Base):
     saved_posts = relationship("SavedPost", back_populates="user", lazy="dynamic")
     tags = relationship("Tag", back_populates="tagged_user", lazy="dynamic")
     
+    # Comics relationships
+    comics = relationship("Comic", back_populates="user", lazy="dynamic")
+    comic_likes = relationship("ComicLike", back_populates="user", lazy="dynamic")
+    comic_comments = relationship("ComicComment", back_populates="user", lazy="dynamic")
+    saved_comics = relationship("SavedComic", back_populates="user", lazy="dynamic")
+    
     def __repr__(self):
         return f"<User(username={self.username}, email={self.email})>"

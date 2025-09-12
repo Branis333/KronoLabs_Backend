@@ -205,6 +205,81 @@ class Hashtag(Base):
     # Relationships
     post = relationship("Post", back_populates="hashtags")
 
+class Comic(Base):
+    __tablename__ = "comics"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    thumbnail_data = Column(LargeBinary, nullable=False)  # Thumbnail image as binary
+    thumbnail_mime_type = Column(String(100), nullable=False)  # MIME type of thumbnail
+    genre = Column(String(100), nullable=True)  # e.g., "Action", "Comedy", "Drama"
+    status = Column(String(50), nullable=False, default="ongoing")  # "ongoing", "completed", "hiatus"
+    is_public = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="comics")
+    pages = relationship("ComicPage", back_populates="comic", cascade="all, delete-orphan", order_by="ComicPage.page_number")
+    likes = relationship("ComicLike", back_populates="comic", cascade="all, delete-orphan")
+    comments = relationship("ComicComment", back_populates="comic", cascade="all, delete-orphan")
+    saved_by = relationship("SavedComic", back_populates="comic", cascade="all, delete-orphan")
+
+class ComicPage(Base):
+    __tablename__ = "comic_pages"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    comic_id = Column(UUID(as_uuid=True), ForeignKey('comics.id'), nullable=False)
+    page_number = Column(Integer, nullable=False)  # Sequential page number
+    page_data = Column(LargeBinary, nullable=False)  # Page image as binary data
+    page_mime_type = Column(String(100), nullable=False)  # MIME type of the page image
+    page_title = Column(String(255), nullable=True)  # Optional title for the page
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    comic = relationship("Comic", back_populates="pages")
+
+class ComicLike(Base):
+    __tablename__ = "comic_likes"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    comic_id = Column(UUID(as_uuid=True), ForeignKey('comics.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="comic_likes")
+    comic = relationship("Comic", back_populates="likes")
+
+class ComicComment(Base):
+    __tablename__ = "comic_comments"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    comic_id = Column(UUID(as_uuid=True), ForeignKey('comics.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    text = Column(Text, nullable=False)
+    parent_comment_id = Column(UUID(as_uuid=True), ForeignKey('comic_comments.id'), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    comic = relationship("Comic", back_populates="comments")
+    user = relationship("User", back_populates="comic_comments")
+    parent_comment = relationship("ComicComment", remote_side=[id], backref="replies")
+
+class SavedComic(Base):
+    __tablename__ = "saved_comics"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    comic_id = Column(UUID(as_uuid=True), ForeignKey('comics.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="saved_comics")
+    comic = relationship("Comic", back_populates="saved_by")
+
 class Report(Base):
     __tablename__ = "reports"
     
@@ -212,6 +287,7 @@ class Report(Base):
     reporter_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     reported_user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     post_id = Column(UUID(as_uuid=True), ForeignKey('posts.id'), nullable=True)
+    comic_id = Column(UUID(as_uuid=True), ForeignKey('comics.id'), nullable=True)
     reason = Column(Text, nullable=False)
     status = Column(SQLEnum(ReportStatus), default=ReportStatus.pending)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -220,3 +296,4 @@ class Report(Base):
     reporter = relationship("User", foreign_keys=[reporter_id])
     reported_user = relationship("User", foreign_keys=[reported_user_id])
     post = relationship("Post")
+    comic = relationship("Comic")

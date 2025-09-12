@@ -141,6 +141,34 @@ class MediaUtils:
         return await MediaUtils.process_post_media(file)  # Same rules as posts
     
     @staticmethod
+    async def process_comic_thumbnail(file: UploadFile) -> dict:
+        """Process comic thumbnail upload"""
+        content, mime_type = await MediaUtils.process_uploaded_file(
+            file,
+            max_size=MediaUtils.MAX_IMAGE_SIZE,
+            allowed_types=MediaUtils.ALLOWED_IMAGE_TYPES
+        )
+        
+        return {
+            "media_data": content,
+            "media_mime_type": mime_type
+        }
+    
+    @staticmethod
+    async def process_comic_page(file: UploadFile) -> dict:
+        """Process comic page upload (only images allowed)"""
+        content, mime_type = await MediaUtils.process_uploaded_file(
+            file,
+            max_size=MediaUtils.MAX_IMAGE_SIZE,  # 10MB limit for comic pages
+            allowed_types=MediaUtils.ALLOWED_IMAGE_TYPES
+        )
+        
+        return {
+            "media_data": content,
+            "media_mime_type": mime_type
+        }
+    
+    @staticmethod
     def encode_to_base64(binary_data: bytes) -> str:
         """Convert binary data to base64 string for API responses"""
         if not binary_data:

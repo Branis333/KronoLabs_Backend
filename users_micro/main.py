@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from Endpoints import auth, posts, social, stories, messages, search
+from Endpoints import auth, posts, social, stories, messages, search, comics
 from db.connection import engine
 from db.database import test_connection
 import models.users_models as user_models
@@ -66,6 +66,7 @@ app.include_router(social.router)
 app.include_router(stories.router)
 app.include_router(messages.router)
 app.include_router(search.router)
+app.include_router(comics.router)
 
 @app.get("/")
 def root():
@@ -82,7 +83,8 @@ def root():
             "Search & Discovery",
             "Notifications",
             "Hashtags",
-            "User Tagging"
+            "User Tagging",
+            "Comics Creation & Reading"
         ]
     }
 

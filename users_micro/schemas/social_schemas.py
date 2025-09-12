@@ -249,6 +249,87 @@ class UserAnalytics(BaseModel):
     total_comments: int = 0
     profile_views: int = 0
 
+# Comic Schemas
+class ComicPageCreate(BaseModel):
+    page_data: str  # Base64 encoded page image
+    page_mime_type: str
+    page_title: Optional[str] = None
+
+class ComicCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    thumbnail_data: str  # Base64 encoded thumbnail image
+    thumbnail_mime_type: str
+    genre: Optional[str] = None
+    status: str = "ongoing"  # "ongoing", "completed", "hiatus"
+    is_public: bool = True
+    pages: List[ComicPageCreate] = []
+
+class ComicPageResponse(BaseModel):
+    id: UUID4
+    page_number: int
+    page_data: str  # Base64 encoded page image
+    page_mime_type: str
+    page_title: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class ComicResponse(BaseModel):
+    id: UUID4
+    user_id: int
+    user: UserProfile
+    title: str
+    description: Optional[str]
+    thumbnail_data: str  # Base64 encoded thumbnail
+    thumbnail_mime_type: str
+    genre: Optional[str]
+    status: str
+    is_public: bool
+    created_at: datetime
+    updated_at: datetime
+    pages_count: Optional[int] = 0
+    likes_count: Optional[int] = 0
+    comments_count: Optional[int] = 0
+    is_liked: Optional[bool] = False
+    is_saved: Optional[bool] = False
+    pages: Optional[List[ComicPageResponse]] = []
+    
+    class Config:
+        from_attributes = True
+
+class ComicCommentCreate(BaseModel):
+    text: str
+    parent_comment_id: Optional[UUID4] = None
+
+class ComicCommentResponse(BaseModel):
+    id: UUID4
+    comic_id: UUID4
+    user_id: int
+    user: UserProfile
+    text: str
+    parent_comment_id: Optional[UUID4]
+    created_at: datetime
+    replies_count: Optional[int] = 0
+    
+    class Config:
+        from_attributes = True
+
+class ComicUpdateStatus(BaseModel):
+    status: str = Field(..., pattern="^(ongoing|completed|hiatus)$")
+
+class ComicUpdateInfo(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    genre: Optional[str] = None
+    is_public: Optional[bool] = None
+
+class ComicsResponse(BaseModel):
+    comics: List[ComicResponse]
+    has_next: bool = False
+    total_count: Optional[int] = None
+
 # Response Schemas
 class SuccessResponse(BaseModel):
     success: bool = True
