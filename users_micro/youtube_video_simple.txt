@@ -1,0 +1,15 @@
+# Simplified YouTube Video Dependencies (Compatible with Python 3.12)
+# Install these with: pip install -r youtube_video_simple.txt
+
+# Essential video processing
+ffmpeg-python
+opencv-python
+Pillow
+pydub
+imageio
+imageio-ffmpeg
+psutil
+tqdm
+
+# Alternative file detection for Windows
+# python-magic-bin

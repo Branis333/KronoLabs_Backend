@@ -1,0 +1,24 @@
+# Video Backend Requirements
+# Install these dependencies for full video functionality
+
+# Google Drive API (required for video storage)
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.1
+google-auth-oauthlib>=1.1.0
+google-auth>=2.23.0
+
+# Video processing (required for thumbnail generation)
+opencv-python>=4.8.0  # Use opencv-python-headless for servers
+Pillow>=10.0.0
+
+# Alternative for servers (headless OpenCV):
+# opencv-python-headless>=4.8.0
+
+# Additional useful packages for video handling
+numpy>=1.24.0  # Usually comes with opencv-python
+
+# Installation commands:
+# pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib opencv-python Pillow
+
+# For production servers:
+# pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib opencv-python-headless Pillow

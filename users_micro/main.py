@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from Endpoints import auth, posts, social, stories, messages, search, comics
+from Endpoints import auth, posts, social, stories, messages, search, comics, videos
+from utils.streaming_api import streaming_router
 from db.connection import engine
 from db.database import test_connection
 import models.users_models as user_models
@@ -67,6 +68,8 @@ app.include_router(stories.router)
 app.include_router(messages.router)
 app.include_router(search.router)
 app.include_router(comics.router)
+app.include_router(videos.router)
+app.include_router(streaming_router)  # YouTube-style video streaming
 
 @app.get("/")
 def root():
@@ -75,7 +78,7 @@ def root():
         "version": "1.0.0",
         "features": [
             "User Authentication",
-            "Posts with Media",
+            "Posts with Media", 
             "Stories (24h)",
             "Direct Messages",
             "Follow/Unfollow",
@@ -84,7 +87,17 @@ def root():
             "Notifications",
             "Hashtags",
             "User Tagging",
-            "Comics Creation & Reading"
+            "Comics Creation & Reading",
+            "🎬 YouTube-Style Video Streaming"
+        ],
+        "video_features": [
+            "Multi-resolution transcoding (144p to 4K)",
+            "Adaptive bitrate streaming",
+            "Binary storage optimization",
+            "Automatic thumbnail generation",
+            "Segmented video streaming",
+            "Background processing pipeline",
+            "Mobile and desktop optimization"
         ]
     }
 

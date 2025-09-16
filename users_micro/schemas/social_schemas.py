@@ -330,6 +330,87 @@ class ComicsResponse(BaseModel):
     has_next: bool = False
     total_count: Optional[int] = None
 
+# Video Schemas
+class VideoCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    description: Optional[str] = None
+    thumbnail_data: str  # Base64 encoded thumbnail image
+    thumbnail_mime_type: str
+    video_url: str  # Google Drive URL
+    video_filename: Optional[str] = None
+    duration: Optional[int] = None  # Duration in seconds
+    category: Optional[str] = None
+    tags: Optional[List[str]] = []
+    is_public: bool = True
+
+class VideoResponse(BaseModel):
+    id: UUID4
+    user_id: int
+    user: UserProfile
+    title: str
+    description: Optional[str]
+    thumbnail_data: Optional[str]  # Base64 encoded thumbnail
+    thumbnail_mime_type: Optional[str] = "image/jpeg"
+    
+    # YouTube-style metadata  
+    original_filename: Optional[str]
+    original_resolution: Optional[str]
+    fps: Optional[int]
+    duration: Optional[int]
+    processing_status: Optional[str] = "completed"
+    
+    # Content metadata
+    category: Optional[str]
+    tags: Optional[List[str]] = []
+    is_public: bool = True
+    view_count: int = 0
+    
+    # Timestamps
+    created_at: datetime
+    updated_at: datetime
+    
+    # Engagement
+    likes_count: Optional[int] = 0
+    comments_count: Optional[int] = 0
+    is_liked: Optional[bool] = False
+    is_saved: Optional[bool] = False
+    
+    # YouTube-style streaming info
+    streaming_url: Optional[str] = None
+    available_qualities: Optional[List[str]] = None
+    
+    class Config:
+        from_attributes = True
+
+class VideoCommentCreate(BaseModel):
+    text: str
+    parent_comment_id: Optional[UUID4] = None
+
+class VideoCommentResponse(BaseModel):
+    id: UUID4
+    video_id: UUID4
+    user_id: int
+    user: UserProfile
+    text: str
+    parent_comment_id: Optional[UUID4]
+    created_at: datetime
+    replies_count: Optional[int] = 0
+    
+    class Config:
+        from_attributes = True
+
+class VideoUpdateInfo(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_public: Optional[bool] = None
+
+class VideosResponse(BaseModel):
+    videos: List[VideoResponse]
+    has_next: bool = False
+    total_count: Optional[int] = None
+
 # Response Schemas
 class SuccessResponse(BaseModel):
     success: bool = True

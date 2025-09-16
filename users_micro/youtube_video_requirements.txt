@@ -1,0 +1,26 @@
+# YouTube-Style Video Processing Dependencies
+# Install these with: pip install -r youtube_video_requirements.txt
+
+# Video processing and transcoding
+ffmpeg-python>=0.2.0       # Python wrapper for FFmpeg
+opencv-python>=4.8.0       # Computer vision for video analysis (will install compatible numpy)
+# Note: opencv-python will automatically install compatible numpy version
+
+# Image processing for thumbnails
+Pillow>=10.0.0             # Image processing library
+
+# Audio processing (for video audio tracks)
+pydub>=0.25.1              # Audio manipulation
+
+# Additional video utilities
+imageio>=2.31.0            # Video I/O operations
+imageio-ffmpeg>=0.4.8      # FFmpeg backend for imageio
+
+# Performance optimization
+psutil>=5.9.0              # System resource monitoring during processing
+
+# Progress tracking
+tqdm>=4.66.0               # Progress bars for video processing
+
+# File type detection (Windows alternative to python-magic)
+python-magic-bin>=0.4.14   # File type detection with Windows binaries included
