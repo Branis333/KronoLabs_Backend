@@ -337,7 +337,9 @@ async def get_video_streaming_info(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get streaming info: {str(e)}"
-        )@router.get("/", response_model=VideosResponse)
+        )
+    
+@router.get("/", response_model=VideosResponse)
 async def get_videos(
     limit: int = Query(20, le=50, ge=1),
     offset: int = Query(0, ge=0),
