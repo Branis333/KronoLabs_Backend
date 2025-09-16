@@ -1,48 +1,47 @@
+# Core FastAPI dependencies
 fastapi
 uvicorn[standard]
-# For Pydantic
 pydantic[email]
-# For authentication
+
+# Authentication
 python-multipart
 python-jose[cryptography]
 passlib[bcrypt]
-# For database
+
+# Database
 sqlalchemy
 psycopg2-binary
-# Environment file
+
+# Environment and configuration
 python-dotenv
-# Additional dependencies
-requests
-pycryptodome
-google-auth
-# For UUID support
-uuid
-# For file uploads
-python-multipart
-# For image processing (optional)
-Pillow
-
-python-magic
-
 aiofiles
-dotenv
+
+# HTTP requests
+requests
+
+# Cryptography
+pycryptodome
+
+# Google APIs
 google-api-python-client>=2.100.0
 google-auth-httplib2>=0.1.1
 google-auth-oauthlib>=1.1.0
 google-auth>=2.23.0
 
-opencv-python>=4.8.0 
+# Image and video processing
 Pillow>=10.0.0
+opencv-python>=4.8.0
+numpy>=1.24.0
 
+# Video processing
+ffmpeg-python>=0.2.0
+pydub>=0.25.1
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.8
 
-numpy>=1.24.0  
+# System utilities  
+psutil>=5.9.0
+tqdm>=4.66.0
 
-ffmpeg-python>=0.2.0       
-opencv-python>=4.8.0       
-Pillow>=10.0.0             
-pydub>=0.25.1              
-imageio>=2.31.0            
-imageio-ffmpeg>=0.4.8      
-psutil>=5.9.0              
-tqdm>=4.66.0               
-python-magic-bin>=0.4.14   
+# File type detection (optional, fallback available)
+python-magic; sys_platform != "win32"   
